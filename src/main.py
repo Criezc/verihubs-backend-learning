@@ -1,7 +1,9 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from typing import List
 from src.domain.User.models import User, Gender, Role, UserUpdateRequest
 from uuid import UUID, uuid4
+from .auth import AuthHandler
+from .domain.User.schemas import AuthDetails
 
 app = FastAPI()
 
@@ -22,6 +24,10 @@ db: List[User] = [
     )
 ]
 
+auth_handler = AuthHandler()
+
+users = []
+
 
 @app.get("/")
 async def root():
@@ -33,15 +39,32 @@ async def fetch_users():
     return db
 
 
-@app.post("/api/v1/register")
-async def register_user(user: User):
-    db.append(user)
-    return {"id": user.id}
+@app.post("/api/v1/register", status_code=201)
+async def register_user(auth_details: AuthDetails):
+    if any(x['username'] == auth_details.username for x in users):
+        raise HTTPException(status_code=400, detail='Username already taken')
+    hashed_password = auth_handler.get_password_hash(auth_details.password)
+    users.append({
+        'username': auth_details.username,
+        'password': hashed_password
+    })
+    return
 
 
 @app.post("/api/v1/login")
-async def login_user():
-    return
+async def login_user(auth_details: AuthDetails):
+    user = None
+    for x in users:
+        if x['username'] == auth_details.username:
+            user = x
+            break
+    if (user is None) or (not auth_handler.verify_password(auth_details.password, user['password'])):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username and/or password"
+        )
+    token = auth_handler.encode_token(user['username'])
+    return {'token': token}
 
 
 @app.get("/api/v1/unprotected")
@@ -52,8 +75,8 @@ async def unprotected_login():
 
 
 @app.get("/api/v1/protected")
-async def protected_login():
-    return {}
+async def protected_login(username=Depends(auth_handler.auth_wrapper)):
+    return {'name': username}
 
 
 @app.delete("/api/v1/users/{user_id}")
