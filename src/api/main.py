@@ -1,9 +1,11 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Body, Depends, FastAPI, HTTPException
 from typing import List
 from src.domain.User.models import User, Gender, Role, UserUpdateRequest
 from uuid import UUID, uuid4
-from .auth import AuthHandler
-from .domain.User.schemas import AuthDetails
+from ..domain.User.schemas import UserEntity, UserLoginEntity
+from .auth.auth import signJWT
+from .auth.bearer import jwtBearer
+
 
 app = FastAPI()
 
@@ -24,8 +26,6 @@ db: List[User] = [
     )
 ]
 
-auth_handler = AuthHandler()
-
 users = []
 
 
@@ -39,44 +39,11 @@ async def fetch_users():
     return db
 
 
-@app.post("/api/v1/register", status_code=201)
-async def register_user(auth_details: AuthDetails):
-    if any(x['username'] == auth_details.username for x in users):
-        raise HTTPException(status_code=400, detail='Username already taken')
-    hashed_password = auth_handler.get_password_hash(auth_details.password)
-    users.append({
-        'username': auth_details.username,
-        'password': hashed_password
-    })
-    return
-
-
-@app.post("/api/v1/login")
-async def login_user(auth_details: AuthDetails):
-    user = None
-    for x in users:
-        if x['username'] == auth_details.username:
-            user = x
-            break
-    if (user is None) or (not auth_handler.verify_password(auth_details.password, user['password'])):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid username and/or password"
-        )
-    token = auth_handler.encode_token(user['username'])
-    return {'token': token}
-
-
 @app.get("/api/v1/unprotected")
 async def unprotected_login():
     return {
         "Hello": "World"
     }
-
-
-@app.get("/api/v1/protected")
-async def protected_login(username=Depends(auth_handler.auth_wrapper)):
-    return {'name': username}
 
 
 @app.delete("/api/v1/users/{user_id}")
@@ -108,3 +75,27 @@ async def update_user(user_id: UUID, user_update: UserUpdateRequest):
         status_code=404,
         detail=f"user with id: {user_id} does not exist"
     )
+
+
+@app.post("/api/v1/user/signup", tags=["user"], status_code=201)
+def user_signup(user: UserEntity = Body(default=None)):
+    users.append(user)
+    return signJWT(user.username)
+
+
+def check_user(data: UserEntity):
+    for user in users:
+        if user.username == data.username and user.password == data.password:
+            return True
+        return False
+
+
+@app.post("/api/v1/user/login", tags=["user"])
+def user_login(user: UserLoginEntity = Body(default=None)):
+    if check_user(user):
+        return signJWT(user.username)
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail="Invalid login details!"
+        )
