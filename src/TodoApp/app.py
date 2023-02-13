@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException
-from .Database import SessionLocal, engine
-from .models import Base, Todos
+from .Db.Database import SessionLocal, engine
+from .Models.models import Base, Todos
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
