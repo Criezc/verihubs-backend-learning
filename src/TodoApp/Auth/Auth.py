@@ -2,7 +2,6 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional
 from ..Models.models import Users, Base
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from ..Db.Database import SessionLocal, engine
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
@@ -95,7 +94,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         "token": token
     }
 
-# Exeptions
+# Exceptions
 
 
 def get_user_exception():
