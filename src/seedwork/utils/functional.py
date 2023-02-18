@@ -14,7 +14,8 @@ def verify_password(plain_password, hashed_password):
 
 
 def auth_user(username: str, password: str, db):
-    user = db.query(Users).filter(Users.username == username).first()
+    user = db.query(Users).filter(Users.username == username).filter(
+        Users.deleted_at == None).first()
 
     if not user:
         return False
@@ -51,3 +52,11 @@ def create_status(detail: str):
         detail=detail,
     )
     return create_response
+
+
+def update_status(detail: str):
+    create_status = HTTPException(
+        status_code=status.HTTP_200_OK,
+        detail=detail
+    )
+    return create_status
